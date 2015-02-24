@@ -1,7 +1,6 @@
 package chart
 
 import (
-	// "ccscharts/wsconn"
 	"code.google.com/p/plotinum/plot"
 	"code.google.com/p/plotinum/plotter"
 	"code.google.com/p/plotinum/vg"
@@ -65,7 +64,6 @@ func (cc *CustomChart) CreatePredictLine(pval []float64) {
 	}()
 }
 
-// randomPoints returns some random x, y points.
 func xysPoints(p []float64) plotter.XYs {
 	pts := make(plotter.XYs, len(p))
 	for i := range pts {

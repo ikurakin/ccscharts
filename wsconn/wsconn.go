@@ -1,7 +1,6 @@
 package wsconn
 
 import (
-	// "encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"net"
