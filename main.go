@@ -16,9 +16,9 @@ func main() {
 		Method:  "call_total",
 	}
 	pointsValue := wsconn.FuncCall("http://192.168.0.231:8888", "stat/stat", &r)
-	ch := chart.New()
-	ch.CreateCurrentLine(pointsValue)
-	ch.CreatePredictLine(pointsValue)
+	ch := chart.New("Calls data", "Minutes", "Calls")
+	ch.CreatePreviousDayLine(pointsValue, "gray")
+	ch.CreatePredictLine(pointsValue, "red")
 	<-ch.LineDone
 	if err := ch.Plot.Save(6, 3, "points.png"); err != nil {
 		panic(err)
