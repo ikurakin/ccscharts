@@ -3,28 +3,16 @@ package wsconn
 import (
 	"fmt"
 	"github.com/gorilla/websocket"
+	// "log"
 	"net"
 	"net/http"
 	"net/url"
 )
 
-type Request struct {
-	Params  TotalStatParams `json:"params"`
-	JsonRPC string          `json:"jsonrpc"`
-	ID      interface{}     `json:"id"`
-	Method  string          `json:"method"`
-}
-
-type TotalStatParams struct {
-	Param             string `json:"param,omitempty"`
-	FromDate          string `json:"from_date,omitempty"`
-	ToDate            string `json:"to_date,omitempty"`
-	SupplierAccountID int    `json:"supplier_account_id,omitempty"`
-	CustomerAccountID int    `json:"customer_account_id,omitempty"`
-	SupplierPartnerID int    `json:"supplier_partner_id,omitempty"`
-	CustomerPartnerID int    `json:"customer_partner_id,omitempty"`
-	DestinationID     int    `json:"destination_id,omitempty"`
-	EquipmentID       int    `json:"equipment_id,omitempty"`
+type Responce struct {
+	Result  interface{} `json:"result"`
+	JsonRPC string      `json:"jsonrpc"`
+	ID      interface{} `json:"id"`
 }
 
 type JsonResponce struct {
@@ -63,34 +51,50 @@ func CreateConn(remoteAddr, ustr string) (*websocket.Conn, error) {
 	return wsConn, nil
 }
 
-func FuncCall(remoteAddr, fpath string, r *Request) []float64 {
+func FuncCall(remoteAddr, fpath string, msgType int, msg []byte, callsChan chan []float64) {
 	wsConn, err := CreateConn(remoteAddr, fpath)
 	if err != nil {
 		panic(err)
 	}
 	defer wsConn.Close()
-	err = wsConn.WriteJSON(r)
-	if err != nil {
-		panic(err)
-	}
-	answerChan := make(chan string)
-	callsChan := make(chan []float64)
+	go func() {
+		err = wsConn.WriteMessage(msgType, msg)
+		if err != nil {
+			panic(err)
+		}
+	}()
+	readDone := make(chan string)
 	var resp JsonResponce
 	go func() {
 		err := wsConn.ReadJSON(&resp)
 		if err != nil {
 			panic(err)
 		}
-		answerChan <- "json parsed"
+		readDone <- "json parsed"
 	}()
-	go func() {
-		<-answerChan
-		var calls_list []float64
-		for _, result := range resp.Result {
-			calls_list = append(calls_list, result.CountAll)
-		}
-		callsChan <- calls_list
-	}()
+	<-readDone
+	var calls_list []float64
+	for _, result := range resp.Result {
+		calls_list = append(calls_list, result.CountAll)
+	}
+	callsChan <- calls_list
+}
 
-	return <-callsChan
+func ReceiveMsg(remoteAddr, fpath string, msgType int, msg []byte, answerChan chan []byte) {
+	wsConn, err := CreateConn(remoteAddr, fpath)
+	if err != nil {
+		panic(err)
+	}
+	defer wsConn.Close()
+	go func() {
+		err = wsConn.WriteMessage(msgType, msg)
+		if err != nil {
+			panic(err)
+		}
+	}()
+	_, answerMsg, err := wsConn.ReadMessage()
+	if err != nil {
+		panic(err)
+	}
+	answerChan <- answerMsg
 }
