@@ -9,9 +9,10 @@ import (
 	"code.google.com/p/plotinum/vg/vgsvg"
 	"encoding/base64"
 	"fmt"
-	"github.com/datastream/holtwinters"
+	// "github.com/datastream/holtwinters"
 	"image/color"
 	"math"
+	"time"
 )
 
 type CustomChart struct {
@@ -27,7 +28,8 @@ func New(title, xtext, ytext string) *CustomChart {
 	}
 	p.Title.Text = title
 	p.X.Label.Text = xtext
-	p.X.Tick.Marker = DefaultTicks
+	p.X.Tick.Marker = DateTicks
+	p.Y.Tick.Marker = DefaultTicks
 	p.Y.Label.Text = ytext
 	p.Add(plotter.NewGrid())
 	p.Legend.Top = true
@@ -46,7 +48,7 @@ func New(title, xtext, ytext string) *CustomChart {
 	}
 }
 
-func (cc *CustomChart) createLine(pval []float64, color string) *plotter.Line {
+func (cc *CustomChart) createLine(pval []map[string]float64, color string) *plotter.Line {
 	lineData := xysPoints(pval)
 	l, err := plotter.NewLine(lineData)
 	if err != nil {
@@ -64,7 +66,7 @@ func (cc *CustomChart) addLine(legend string, l *plotter.Line) {
 	cc.LineDone <- "Done"
 }
 
-func (cc *CustomChart) CreatePreviousDayLine(pval []float64, color string) {
+func (cc *CustomChart) CreatePreviousDayLine(pval []map[string]float64, color string) {
 	go func() {
 		l := cc.createLine(pval, color)
 		c := cc.LineColors[color]
@@ -73,20 +75,20 @@ func (cc *CustomChart) CreatePreviousDayLine(pval []float64, color string) {
 	}()
 }
 
-func (cc *CustomChart) CreateCurrentDayLine(pval []float64, color string) {
+func (cc *CustomChart) CreateCurrentDayLine(pval []map[string]float64, color string) {
 	go func() {
 		l := cc.createLine(pval, color)
 		cc.addLine("curent", l)
 	}()
 }
 
-func (cc *CustomChart) CreatePredictLine(pval []float64, color string) {
-	go func() {
-		prediction, _ := holtwinters.Forecast(pval, 0.1, 0.0035, 0.1, 4, 4)
-		l := cc.createLine(prediction, color)
-		cc.addLine("predict", l)
-	}()
-}
+// func (cc *CustomChart) CreatePredictLine(pval []float64, color string) {
+// 	go func() {
+// 		prediction, _ := holtwinters.Forecast(pval, 0.1, 0.0035, 0.1, 4, 4)
+// 		l := cc.createLine(prediction, color)
+// 		cc.addLine("predict", l)
+// 	}()
+// }
 
 func (cc *CustomChart) GetRawDataImg(w, h float64) (imgData string) {
 	c := vgsvg.New(vg.Points(w), vg.Points(h))
@@ -105,17 +107,75 @@ func (cc *CustomChart) GetRawDataImg(w, h float64) (imgData string) {
 	return
 }
 
-func xysPoints(p []float64) plotter.XYs {
+func xysPoints(p []map[string]float64) plotter.XYs {
 	pts := make(plotter.XYs, len(p))
 	for i := range pts {
-		pts[i].X = float64(i * 15)
-		pts[i].Y = p[i]
+		pts[i].X = p[i]["date"]
+		pts[i].Y = p[i]["count"]
 	}
 	return pts
 }
 
+func DateTicks(min, max float64) (ticks []plot.Tick) {
+	const (
+		fifteenMinTick = 900
+		thirtyMinTick  = 1800
+		oneHourTick    = 3600
+		threeHourTick  = 10800
+		sixHourTick    = 21600
+		twelveHourTick = 43200
+		oneDayTick     = 86400
+		threeDayTick   = 259200
+		oneWeekTick    = 604800
+		oneMonthTick   = 2592000
+	)
+	if max < min {
+		panic("illegal range")
+	}
+	dateDiff := max - min
+	var step float64
+	timeFormat := "15:04"
+	dateFormat := "Jan 2"
+	format := timeFormat
+	switch {
+	case dateDiff <= threeHourTick:
+		step = fifteenMinTick
+	case dateDiff <= sixHourTick:
+		step = thirtyMinTick
+	case dateDiff <= twelveHourTick:
+		step = oneHourTick
+	case dateDiff <= oneDayTick:
+		step = threeHourTick
+	case dateDiff <= threeDayTick:
+		step = sixHourTick
+		format = fmt.Sprintf("%s %s", dateFormat, timeFormat)
+	case dateDiff <= oneWeekTick:
+		step = oneDayTick
+		format = dateFormat
+	case dateDiff <= oneMonthTick:
+		step = threeDayTick
+		format = dateFormat
+	default:
+		step = oneWeekTick
+		format = dateFormat
+	}
+
+	val := math.Floor(min/step) * step
+	for val <= max {
+		if val >= min && val <= max {
+			t := time.Unix(int64(val), 0).Format(format)
+			ticks = append(ticks, plot.Tick{Value: val, Label: t})
+		}
+		if math.Nextafter(val, val+step) == val {
+			break
+		}
+		val += step
+	}
+	return
+}
+
 func DefaultTicks(min, max float64) (ticks []plot.Tick) {
-	const SuggestedTicks = 3
+	const SuggestedTicks = 6
 	if max < min {
 		panic("illegal range")
 	}
