@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 type Responce struct {
@@ -27,6 +28,10 @@ type JsonResult struct {
 	CountAll          float64 `json:"count_all"`
 	Minutes           float64 `json:"minutes"`
 }
+
+const (
+	DATE_FORMAT = "2006-01-02T15:04:05"
+)
 
 func CreateConn(remoteAddr, ustr string) (*websocket.Conn, error) {
 	u, err := url.Parse(fmt.Sprintf("%s/websocket/%s", remoteAddr, ustr))
@@ -51,7 +56,7 @@ func CreateConn(remoteAddr, ustr string) (*websocket.Conn, error) {
 	return wsConn, nil
 }
 
-func FuncCall(remoteAddr, fpath string, msgType int, msg []byte, callsChan chan []float64) {
+func FuncCall(remoteAddr, fpath string, msgType int, msg []byte, callsChan chan []map[string]float64) {
 	wsConn, err := CreateConn(remoteAddr, fpath)
 	if err != nil {
 		panic(err)
@@ -73,9 +78,10 @@ func FuncCall(remoteAddr, fpath string, msgType int, msg []byte, callsChan chan 
 		readDone <- "json parsed"
 	}()
 	<-readDone
-	var calls_list []float64
+	var calls_list []map[string]float64
 	for _, result := range resp.Result {
-		calls_list = append(calls_list, result.CountAll)
+		t, _ := time.Parse(DATE_FORMAT, result.ToDate)
+		calls_list = append(calls_list, map[string]float64{"count": result.CountAll, "date": float64(t.Unix())})
 	}
 	callsChan <- calls_list
 }

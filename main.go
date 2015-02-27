@@ -10,8 +10,8 @@ import (
 	"net/http"
 )
 
-func DrawChart(currentDayData []float64) *wsconn.Responce {
-	ch := chart.New("Calls data", "Minutes", "Calls")
+func DrawChart(currentDayData []map[string]float64) *wsconn.Responce {
+	ch := chart.New("Calls data", "Date/Time", "Calls")
 	// ch.CreatePreviousDayLine(prevdata, "gray")
 	ch.CreateCurrentDayLine(currentDayData, "blue")
 	// ch.CreatePredictLine(curentData, "yellow")
@@ -46,13 +46,9 @@ func HandleStatsRequest(rw http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Println(err)
 	}
-	// answerChan := make(chan []byte)
-	currentDayData := make(chan []float64)
-	// go wsconn.ReceiveMsg("http://192.168.0.231:8888", fmt.Sprintf("%s/%s", wspath1, wspath2), msgType, msg, answerChan)
-	// go wsconn.ReceiveMsg("http://192.168.0.231:8888", "stat/stat", msgType, msg, answerChan)
+	currentDayData := make(chan []map[string]float64)
 	go wsconn.FuncCall("http://192.168.0.231:8888", "stat/stat", msgType, msg, currentDayData)
 	resp := DrawChart(<-currentDayData)
-	// log.Println(string(<-answerChan))
 	err = ws.WriteJSON(resp)
 	if err != nil {
 		log.Println(err)
